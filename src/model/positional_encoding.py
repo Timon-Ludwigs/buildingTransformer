@@ -1,31 +1,44 @@
 import torch
 import torch.nn as nn
-import math
+
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, embedding_dim: int, max_seq_len: int):
+    """
+    compute sinusoid encoding.
+    """
+
+    def __init__(self, input_dim, max_len):
         """
-        Initialize the Positional Encoding layer.
-        :param embedding_dim: Dimensionality of word embeddings.
-        :param max_seq_len: Maximum length of input sequences.
+        constructor of sinusoid encoding class
+
+        :param input_dim: dimension of model
+        :param max_len: max sequence length
+        :param device: hardware device setting
         """
         super(PositionalEncoding, self).__init__()
-        # Create the positional encoding matrix
-        position = torch.arange(0, max_seq_len).unsqueeze(1)  # Shape: (max_seq_len, 1)
-        div_term = torch.exp(torch.arange(0, embedding_dim, 2) * -(math.log(10000.0) / embedding_dim))
-        
-        pe = torch.zeros(max_seq_len, embedding_dim)
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0)  # Shape: (1, max_seq_len, embedding_dim)
 
-        self.register_buffer('pe', pe)
+        # same size with input matrix (for adding with input matrix)
+        self.encoding = torch.zeros(max_len, input_dim)
+        self.encoding.requires_grad = False  # we don't need to compute gradient
+
+        pos = torch.arange(0, max_len)
+        pos = pos.float().unsqueeze(dim=1)
+        # 1D => 2D unsqueeze to represent word's position
+
+        _2i = torch.arange(
+            0,
+            input_dim,
+            step=2,
+        ).float()
+        # 'i' means index of input_dim (e.g. embedding size = 50, 'i' = [0,50])
+        # "step=2" means 'i' multiplied with two (same with 2 * i)
+
+        self.encoding[:, 0::2] = torch.sin(pos / (10000 ** (_2i / input_dim)))
+        self.encoding[:, 1::2] = torch.cos(pos / (10000 ** (_2i / input_dim)))
+        # compute positional encoding to consider positional information of words
 
     def forward(self, x):
-        """
-        Add positional encoding to the input tensor.
-        :param x: Input tensor of shape (batch_size, seq_len, embedding_dim).
-        :return: Tensor with positional encoding added, same shape as x.
-        """
-        seq_len = x.size(1)
-        return x + self.pe[:, :seq_len, :]
+        # self.encoding
+        # x.size(1) -> Sequence lenght
+
+        return self.encoding[: x.size(1), :]

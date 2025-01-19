@@ -1,65 +1,52 @@
 import re
-import unicodedata
 
-def clean_text(text, whitelist="abcdefghijklmnopqrstuvwxyz ÄÖÜäöüß ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,!?()[]{}:;-&$@#%£€/\|_+*¥"):
-    """
-    Clean text by removing non-whitelisted characters and normalizing unicode.
-    
-    Args:
-        text (str): Input text to clean
-        whitelist (str): Allowed characters
-    
-    Returns:
-        str: Cleaned text
-    """
-    # Normalize unicode characters
-    text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('utf-8')
-    
-    # Remove URLs and HTML tags
-    text = re.sub(r'http\S+|www\.\S+', '', text)
-    text = re.sub(r'<.*?>', '', text)
-    
-    # Remove non-whitelisted characters
-    text = ''.join(char for char in text if char in whitelist)
-    
-    # Convert to lowercase
-    text = text.lower().strip()
-    
+
+def clean_sentence(text):
+    text = text.encode("utf-8").decode("utf-8")
+    text = re.compile(r"http\S+").sub("", text)
+    text = re.compile(r"<.*?>").sub("", text)
+    whitelist = set(
+        "abcdefghijklmnopqrstuvwxyz ÄÖÜäöüß ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,!?()[]{}:;-&$@#%£€/\\|_+*¥"
+    )
+    text = "".join(char.lower() for char in text if char in whitelist)
     return text
 
-def clean_dataset(dataset, min_length=5, max_length=64, max_ratio=1.5):
-    """
-    Clean the machine translation dataset.
-    
-    Args:
-        dataset: Huggingface dataset
-        min_length (int): Minimum sentence length
-        max_length (int): Maximum sentence length
-        max_ratio (float): Maximum length ratio between source and target
-    
-    Returns:
-        Cleaned dataset
-    """
-    def is_valid_pair(source, target):
-        # Clean texts
-        source_clean = clean_text(source)
-        target_clean = clean_text(target)
-        
-        # Check lengths
-        if not (min_length <= len(source_clean.split()) <= max_length and 
-                min_length <= len(target_clean.split()) <= max_length):
-            return False
-        
-        # Check length ratio
-        if len(source_clean) / len(target_clean) > max_ratio or \
-           len(target_clean) / len(source_clean) > max_ratio:
-            return False
-        
-        return True
-    
-    # Filter dataset
-    cleaned_dataset = dataset.filter(
-        lambda x: is_valid_pair(x['translation']['de'], x['translation']['en'])
+
+def filter_by_length(source, target, min_length, max_length):
+    return (
+        min_length <= len(source.split()) <= max_length
+        and min_length <= len(target.split()) <= max_length
     )
-    
+
+
+def preprocess(example, min_length=5, max_length=64, ratio=1.5):
+    source = clean_sentence(example["de"])
+    target = clean_sentence(example["en"])
+    if filter_by_length(source, target, min_length, max_length):
+        example["src"] = source
+        example["tgt"] = target
+        return example
+    else:
+        return None
+
+
+def clean_dataset(dataset):
+    """
+    Cleans and filters a dataset by preprocessing sentences in the 'de' and 'en' translation fields.
+    Only retains examples where both sentences are between 5 and 64 words long.
+
+    Args:
+        dataset (list): Dataset containing examples with 'translation' dictionaries.
+
+    Returns:
+        list: Cleaned dataset with 'src' and 'tgt' fields.
+    """
+    cleaned_dataset = []
+
+    for example in dataset["translation"]:
+        cleaned_example = preprocess(example)
+        if cleaned_example is None:
+            continue
+        cleaned_dataset.append(cleaned_example)
+
     return cleaned_dataset

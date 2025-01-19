@@ -8,6 +8,12 @@ authors = ["Timon"]
 python = ">=3.10,<4.0"
 torch = "^2.5.1"
 numpy = "^2.2.0"
+tokenizers = "^0.21.0"
+datasets = "^3.2.0"
+transformers = "^4.48.0"
+config = "^0.5.1"
+torchvision = "^0.20.1"
+tqdm = "^4.67.1"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 pytest = "^6.2.5"

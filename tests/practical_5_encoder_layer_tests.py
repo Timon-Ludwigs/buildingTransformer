@@ -7,7 +7,7 @@ import torch
 # Add the parent directory to the system path for importing modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from model.functional import BaseTransformerLayer
+from src.model.functional import TransformerEncoderLayer
 
 # Define test data for hidden states and attention masks
 INPUT = torch.tensor([
@@ -24,7 +24,7 @@ ATTENTION_MASK = torch.tensor([[1, 1, 1], [1, 1, 0]])
 # Define test data for attention outputs (feature_dim is the hidden dimension of the position wise feed forward layer)
 TEST_DATA = [
     (
-        BaseTransformerLayer(input_dim=INPUT.size(-1), num_heads=2, feature_dim=6, dropout=0.0),
+        TransformerEncoderLayer(input_dim=INPUT.size(-1), num_heads=2, feature_dim=6, dropout=0.0),
         INPUT,
         ATTENTION_MASK,
         torch.tensor([

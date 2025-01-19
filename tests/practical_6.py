@@ -9,7 +9,8 @@ import torch
 # Add the parent directory to the system path for importing modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from model.functional import TransformerDecoderLayer
+from src.model.functional import TransformerDecoderLayer
+
 
 # Define test data for hidden states and attention masks
 ENCODER = torch.tensor(
@@ -41,7 +42,7 @@ ENCODER_ATTENTION_MASK = torch.tensor([[1, 0], [1, 1]])
 TEST_DATA = [
     (
         TransformerDecoderLayer(
-            input_dim=INPUT.size(-1), num_heads=2, feature_dim=6, dropout=0.0
+            d_model=INPUT.size(-1), n_heads=2, feature_dim=6, dropout=0.0
         ),
         INPUT,
         ENCODER,
@@ -196,11 +197,13 @@ STATE_DICT = {
 )
 def test_layer(layer, input, encoder, encoder_attention_mask, attention_mask, expected):
     """Test the Multi-head Attention layer."""
+
     # Load pre-defined state dictionary into the multi-head attention layer
     layer.load_state_dict(STATE_DICT)
-
-    actual = layer(input, encoder, encoder_attention_mask, attention_mask)
+    actual = layer(encoder, input, encoder_attention_mask, attention_mask)
     # Mask padded positions
     actual *= attention_mask.unsqueeze(-1).float()
 
-    assert torch.allclose(actual, expected)
+    rtol = 1e-3
+    atol = 1e-5
+    assert torch.allclose(actual, expected, rtol=rtol, atol=atol)

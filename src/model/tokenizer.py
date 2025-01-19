@@ -1,48 +1,41 @@
-# For comparison with Hugging Face implementation
-import tokenizers
-from BPETokenizer_customize import BPETokenizer
+import re
+from collections import Counter, defaultdict
 
-def train_huggingface_tokenizer(corpus, vocab_size=295):
-    # Create a new BPE tokenizer
-    tokenizer = tokenizers.BertWordPieceTokenizer(
-        clean_text=True,
-        handle_chinese_chars=False,
-        strip_accents=False,
-        lowercase=True
-    )
-    
-    # Train the tokenizer
-    tokenizer.train_from_iterator(
-        corpus,
-        vocab_size=vocab_size,
-        min_frequency=2,
-        show_progress=True
-    )
-    
-    return tokenizer
+class BPETokenizer:
+    def __init__(self, vocab_size):
+        self.vocab_size = vocab_size
+        self.vocab = {}
 
-# Corpus for training
-corpus = [
-    "Machine learning helps in understanding complex patterns.",
-    "Learning machine languages can be complex yet rewarding.",
-    "Natural language processing unlocks valuable insights from data.",
-    "Processing language naturally is a valuable skill in machine learning.",
-    "Understanding natural language is crucial in machine learning."
-]
+    def _get_stats(self, corpus):
+        """Get pair frequencies in the corpus."""
+        pairs = defaultdict(int)
+        for word, freq in corpus.items():
+            symbols = word.split()
+            for i in range(len(symbols) - 1):
+                pairs[(symbols[i], symbols[i + 1])] += freq
+        return pairs
 
-# Train custom BPE tokenizer
-custom_tokenizer = BPETokenizer(vocab_size=64).train(corpus)
+    def _merge_vocab(self, pair, corpus):
+        """Merge the most frequent pair in the vocabulary."""
+        new_corpus = {}
+        bigram = re.escape(' '.join(pair))
+        pattern = re.compile(rf'(?<!\S){bigram}(?!\S)')
+        for word, freq in corpus.items():
+            new_word = pattern.sub(''.join(pair), word)
+            new_corpus[new_word] = freq
+        return new_corpus
 
-# Example sentence to tokenize
-test_sentence = "Machine learning is a subset of artificial intelligence."
+    def train(self, corpus):
+        """Train the BPE tokenizer on a given corpus."""
+        # Initialize corpus with word frequencies
+        word_freq = Counter(' '.join(list(word)) + ' </w>' for sentence in corpus for word in sentence.split())
+        self.vocab = dict(word_freq)
 
-# Tokenize with custom implementation
-custom_tokens = custom_tokenizer.tokenize(test_sentence)
-print("Custom Tokenizer Tokens:", custom_tokens)
-
-# Train Hugging Face tokenizer
-hf_tokenizer = train_huggingface_tokenizer(corpus)
-
-# Tokenize with Hugging Face implementation
-hf_tokens = hf_tokenizer.encode(test_sentence).tokens
-print("Hugging Face Tokenizer Tokens:", hf_tokens)
+        # Iteratively merge the most frequent pairs
+        while len(self.vocab) < self.vocab_size:
+            pairs = self._get_stats(self.vocab)
+            if not pairs:
+                break
+            most_frequent = max(pairs, key=pairs.get)
+            self.vocab = self._merge_vocab(most_frequent, self.vocab)
+        return self.vocab
