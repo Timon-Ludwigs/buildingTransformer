@@ -113,9 +113,9 @@ def main():
     # Hyperparameters
     trainer_config = {
         "batch_size": 1,
-        "num_epochs": 20,
-        "learning_rate": 0.2, # 0.1 best for now
-        "warmup_steps": 10000, # 8000 best for now
+        "num_epochs": 30,
+        "learning_rate": 0.01, # 0.01 best for now, 0.001 too low
+        "warmup_steps": 5000, # 5000 best for now
         "val_interval": 1,  # Perform validation every epoch
         "device": torch.device("cuda" if torch.cuda.is_available() else "cpu")
     }

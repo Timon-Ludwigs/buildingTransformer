@@ -31,16 +31,7 @@ def preprocess(example, min_length=5, max_length=64, ratio=1.5):
 
 
 def clean_dataset(dataset):
-    """
-    Cleans and filters a dataset by preprocessing sentences in the 'de' and 'en' translation fields.
-    Only retains examples where both sentences are between 5 and 64 words long.
 
-    Args:
-        dataset (list): Dataset containing examples with 'translation' dictionaries.
-
-    Returns:
-        list: Cleaned dataset with 'src' and 'tgt' fields.
-    """
     cleaned_dataset = []
 
     for example in dataset["translation"]:
