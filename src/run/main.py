@@ -7,9 +7,11 @@ from torch.optim.lr_scheduler import LambdaLR
 from tqdm import tqdm
 import logging
 import os
+import wandb
 from src.dataset import TranslationDataset
 from src.model.transformer import TransformerModel
 from src.utils.data_cleaning import clean_dataset
+from sacrebleu import corpus_bleu
 
 def setup_logger():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
@@ -36,6 +38,21 @@ class Trainer:
         self.loss_fn = torch.nn.CrossEntropyLoss(ignore_index=tokenizer.pad_token_id)
         self.logger = setup_logger()
 
+        # Initialize WandB
+        wandb.init(
+            project="transformer-training",  # Change to your WandB project name
+            config=config,
+        )
+        wandb.watch(self.model, log="all", log_freq=100)
+
+    def calculate_bleu(self, predictions, references):
+        # Convert token IDs back to text
+        decoded_preds = [self.tokenizer.decode(pred, skip_special_tokens=True) for pred in predictions]
+        decoded_refs = [[self.tokenizer.decode(ref, skip_special_tokens=True)] for ref in references]
+        # Calculate BLEU score
+        bleu = corpus_bleu(decoded_preds, decoded_refs)
+        return bleu.score
+
     def train_epoch(self):
         self.model.train()
         total_loss = 0
@@ -58,12 +75,17 @@ class Trainer:
 
             total_loss += loss.item()
 
+            # Log training loss for each batch
+            wandb.log({"Training Loss (Batch)": loss.item()})
+
         return total_loss / len(self.train_loader)
 
     @torch.no_grad()
     def validate(self):
         self.model.eval()
         total_loss = 0
+        predictions = []
+        references = []
 
         for batch in tqdm(self.val_loader, desc="Validating"):
             source_ids = batch["source_ids"].to(self.config["device"])
@@ -76,12 +98,25 @@ class Trainer:
             loss = self.loss_fn(output.view(-1, output.size(-1)), labels.view(-1))
             total_loss += loss.item()
 
+            # Collect predictions and references for BLEU
+            pred_ids = torch.argmax(output, dim=-1).tolist()
+            predictions.extend(pred_ids)
+            references.extend(labels.tolist())
+
+        bleu_score = self.calculate_bleu(predictions, references)
+
+        # Log BLEU to WandB
+        wandb.log({"Validation Loss": total_loss / len(self.val_loader), "BLEU Score": bleu_score})
+
         return total_loss / len(self.val_loader)
 
-    def save_checkpoint(self, path="./checkpoints/best_model.pth"):
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        torch.save({"model_state_dict": self.model.state_dict()}, path)
-        self.logger.info(f"Checkpoint saved at {path}")
+
+    #def save_checkpoint(self, path="./checkpoints/best_model.pth"):
+        #os.makedirs(os.path.dirname(path), exist_ok=True)
+        #torch.save({"model_state_dict": self.model.state_dict()}, path)
+        #self.logger.info(f"Checkpoint saved at {path}")
+        #wandb.save(path, base_path="./checkpoints/")
+
 
     def train(self):
         best_val_loss = float("inf")
@@ -91,16 +126,18 @@ class Trainer:
 
             train_loss = self.train_epoch()
             self.logger.info(f"Training Loss: {train_loss:.4f}")
+            wandb.log({"Training Loss (Epoch)": train_loss, "Epoch": epoch + 1})
 
             if (epoch + 1) % self.config["val_interval"] == 0:
                 val_loss = self.validate()
                 self.logger.info(f"Validation Loss: {val_loss:.4f}")
 
-                if val_loss < best_val_loss:
-                    best_val_loss = val_loss
-                    self.save_checkpoint(path="./checkpoints/best_model.pth")
+                #if val_loss < best_val_loss:
+                #    best_val_loss = val_loss
+                #    self.save_checkpoint(path="./checkpoints/best_model.pth")
 
-def prepare_data(tokenizer, train_split="train[:100]", val_split="validation[:100]"):
+
+def prepare_data(tokenizer, train_split="train[:10000]", val_split="validation[:2000]"):
     train_data = clean_dataset(load_dataset("wmt17", "de-en", split=train_split))
     val_data = clean_dataset(load_dataset("wmt17", "de-en", split=val_split))
 
@@ -110,42 +147,45 @@ def prepare_data(tokenizer, train_split="train[:100]", val_split="validation[:10
     return train_dataset, val_dataset
 
 def main():
+    # Initialize WandB run
+    wandb.init(project="transformer-training")
+
     # Hyperparameters
     trainer_config = {
-        "batch_size": 1,
-        "num_epochs": 30,
-        "learning_rate": 0.01, # 0.01 best for now, 0.001 too low
-        "warmup_steps": 5000, # 5000 best for now
-        "val_interval": 1,  # Perform validation every epoch
+        "batch_size": 32,
+        "num_epochs": 10,
+        "learning_rate": 0.01,  
+        "warmup_steps": 2000,
+        "val_interval": 1,
         "device": torch.device("cuda" if torch.cuda.is_available() else "cpu")
     }
 
     # Model configuration
     model_config = {
         "vocab_size": 50000,
-        "input_dim": 64,
+        "input_dim": 128,
         "max_len": 64,
-        "num_heads": 2,
-        "num_encoder_layers": 4,
-        "num_decoder_layers": 4,
-        "feature_dim": 64,
-        "dropout": 0.00001
+        "num_heads": 8,
+        "num_encoder_layers": 8,
+        "num_decoder_layers": 8,
+        "feature_dim": 128,
+        "dropout": 0.2
     }
 
     # Initialize tokenizer
-    tokenizer = GPT2Tokenizer.from_pretrained(str("gpt2"))
+    tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
     tokenizer.add_special_tokens(
         {"pad_token": "[PAD]", "bos_token": "[BOS]", "eos_token": "[EOS]", "unk_token": "[UNK]"}
     )
     model_config["vocab_size"] = len(tokenizer)
 
     # Prepare data
-    train_dataset, val_dataset = prepare_data(tokenizer, train_split="train[:100]", val_split="validation[:100]")
+    train_dataset, val_dataset = prepare_data(tokenizer, train_split="train[:10000]", val_split="validation[:4000]")
     train_loader = DataLoader(train_dataset, batch_size=trainer_config["batch_size"], shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=trainer_config["batch_size"], shuffle=False)
 
     for sample in train_dataset:
-        print(sample["source_ids"].max().item())  # Check the maximum token ID
+        print(sample["source_ids"].max().item())
         print(sample["target_ids"].max().item())
         break
 

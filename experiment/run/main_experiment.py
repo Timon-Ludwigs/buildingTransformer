@@ -161,13 +161,13 @@ class EnhancedTrainer:
             result[:, middle_start:middle_end] = middle[:, idx]
         return result
 
-    def _drop_random_tokens(self, tensor, drop_prob=0.2):  # Increase from 0.1
+    def _drop_random_tokens(self, tensor, drop_prob=0.2):
         mask = torch.rand(tensor.shape, device=tensor.device) > drop_prob
         result = tensor.clone()
         result[~mask] = self.tokenizer.pad_token_id
         return result
 
-    def _repeat_tokens(self, tensor, repeat_prob=0.2):  # Increase from 0.1
+    def _repeat_tokens(self, tensor, repeat_prob=0.2):
         result = tensor.clone()
         for i in range(tensor.size(1)-1):
             if torch.rand(1).item() < repeat_prob:
@@ -205,7 +205,7 @@ class EnhancedTrainer:
         }, path)
         self.logger.info(f"Checkpoint saved at {path}")
 
-def prepare_data(tokenizer, train_split="train[:100]", val_split="validation[:100]"):
+def prepare_data(tokenizer, train_split="train[:10000]", val_split="validation[:4000]"):
     train_data = clean_dataset(load_dataset("wmt17", "de-en", split=train_split))
     val_data = clean_dataset(load_dataset("wmt17", "de-en", split=val_split))
 
@@ -255,27 +255,30 @@ def plot_enhanced_comparison(sin_trainer, learn_trainer, save_path="enhanced_com
     plt.close()
 
 def main():
-    # Your existing configuration setup
-    model_config = {
-    "vocab_size": 50000,
-    "input_dim": 256,      # Increase from 64
-    "max_len": 64,
-    "num_heads": 8,        # Increase from 2
-    "num_encoder_layers": 4,
-    "num_decoder_layers": 4,
-    "feature_dim": 256,    # Increase from 64
-    "dropout": 0.1         # Increase from 0.00001
-    }
 
     trainer_config = {
-        "batch_size": 32,      # Increase from 1
-        "num_epochs": 30,
-        "learning_rate": 0.001, # Decrease from 0.01
-        "warmup_steps": 5000,
+        "batch_size": 64,
+        "num_epochs": 10,
+        "learning_rate": 0.05,  
+        "warmup_steps": 4000,
         "val_interval": 1,
         "device": torch.device("cuda" if torch.cuda.is_available() else "cpu"),
         "max_len": 64
     }
+
+    # Model configuration
+    model_config = {
+        "vocab_size": 50000,
+        "input_dim": 128,
+        "max_len": 64,
+        "num_heads": 8,
+        "num_encoder_layers": 8,
+        "num_decoder_layers": 8,
+        "feature_dim": 128,
+        "dropout": 0.2
+    }
+
+
     # Initialize tokenizer and prepare data (your existing code)
     tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
     tokenizer.add_special_tokens(
