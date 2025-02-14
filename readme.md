@@ -2,9 +2,7 @@
 
 This repository contains a PyTorch implementation of the Transformer model as originally introduced by Vaswani et al. in [Attention Is All You Need](https://arxiv.org/abs/1706.03762)*. It is the result of my work in the Implementing Transformers course during the Winter Semester 2024/25 at the [Heinrich Heine University Düsseldorf](https://www.heicad.hhu.de/lehre/masters-programme-ai-and-data-science), led by [Carel van Niekerk](https://carelvniekerk.github.io/).
 
-With numerous Transformer implementations available, what makes this one unique? In short, I successfully train and validate the model on an NVIDIA A100 using mixed precision (fp16), which comes with its own challenges. This repository shares the techniques and optimizations I used to make it work efficiently.
-
-Additionally, you will find my written report on the code and course below. It includes intuitive explanations and mathematical insights that I discovered or derived during my research.
+You will find my written report on the code and course below. It includes intuitive explanations and mathematical insights that I discovered or derived during my research.
 
 ## Schedule
 
